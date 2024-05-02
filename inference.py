@@ -22,8 +22,8 @@ def load_checkpoint(filepath, device):
     return checkpoint_dict
 
 
-def get_mel(x):
-    return mel_spectrogram(x, h.n_fft, h.num_mels, h.sampling_rate, h.hop_size, h.win_size, h.fmin, h.fmax)
+def get_mel(x): # this is not the librosa function
+    return mel_spectrogram(x, h.n_fft, h.num_mels, h.sampling_rate, h.hop_size, h.win_size, h.fmin, h.fmax) # all of these variables come from the config.json of the pre-trained model weight
 
 
 def scan_checkpoint(cp_dir, prefix):
@@ -40,6 +40,7 @@ def inference(a):
     state_dict_g = load_checkpoint(a.checkpoint_file, device)
     generator.load_state_dict(state_dict_g['generator'])
 
+    # list of all the files in the input_wavs_dir directories; they should all be .wav files
     filelist = os.listdir(a.input_wavs_dir)
 
     os.makedirs(a.output_dir, exist_ok=True)
@@ -48,13 +49,13 @@ def inference(a):
     generator.remove_weight_norm()
     with torch.no_grad():
         for i, filname in enumerate(filelist):
-            wav, sr = load_wav(os.path.join(a.input_wavs_dir, filname))
-            wav = wav / MAX_WAV_VALUE
+            wav, sr = load_wav(os.path.join(a.input_wavs_dir, filname)) # uses scipy.io.wavfile underneath
+            wav = wav / MAX_WAV_VALUE # -> divide by 2**15 for int16 max range format
             wav = torch.FloatTensor(wav).to(device)
-            x = get_mel(wav.unsqueeze(0))
+            x = get_mel(wav.unsqueeze(0)) # add batch dimension in front before computing the mel-spec
             y_g_hat = generator(x)
-            audio = y_g_hat.squeeze()
-            audio = audio * MAX_WAV_VALUE
+            audio = y_g_hat.squeeze() # remove the batch dim
+            audio = audio * MAX_WAV_VALUE # re-scale
             audio = audio.cpu().numpy().astype('int16')
 
             output_file = os.path.join(a.output_dir, os.path.splitext(filname)[0] + '_generated.wav')
@@ -68,8 +69,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_wavs_dir', default='test_files')
     parser.add_argument('--output_dir', default='generated_files')
-    parser.add_argument('--checkpoint_file', required=True)
-    a = parser.parse_args()
+    parser.add_argument('--checkpoint_file', required=True) # weights/g_02500000
+    a = parser.parse_args() # stores arguments from command line
 
     config_file = os.path.join(os.path.split(a.checkpoint_file)[0], 'config.json')
     with open(config_file) as f:
@@ -77,7 +78,8 @@ def main():
 
     global h
     json_config = json.loads(data)
-    h = AttrDict(json_config)
+    # this is just a fancy way of passing all the arguments inside config.json to a variable h
+    h = AttrDict(json_config) 
 
     torch.manual_seed(h.seed)
     global device
