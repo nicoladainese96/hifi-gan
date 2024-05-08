@@ -13,6 +13,10 @@ from models import Generator
 h = None
 device = None
 
+import warnings
+
+# To ignore all warnings
+warnings.filterwarnings("ignore")
 
 def load_checkpoint(filepath, device):
     assert os.path.isfile(filepath)
@@ -49,15 +53,30 @@ def inference(a):
     generator.remove_weight_norm()
     with torch.no_grad():
         for i, filname in enumerate(filelist):
+            print("filname",filname)
             wav, sr = load_wav(os.path.join(a.input_wavs_dir, filname)) # uses scipy.io.wavfile underneath
+            print('wav.shape', wav.shape)
+            print('type(wav)', type(wav))
             wav = wav / MAX_WAV_VALUE # -> divide by 2**15 for int16 max range format
+            print('wav.max()', wav.max())
+            print('wav.min()', wav.min())
+            print('wav.mean()', wav.mean())
             wav = torch.FloatTensor(wav).to(device)
             x = get_mel(wav.unsqueeze(0)) # add batch dimension in front before computing the mel-spec
+            # (batch size, num_mels, signal length) = (1, 80, ?)
+            print('x.shape', x.shape)
+            print('x.max()', x.max())
+            print('x.min()', x.min())
+            print('x.mean()', x.mean())
             y_g_hat = generator(x)
+            print('y_g_hat.shape', y_g_hat.shape)
+            print('y_g_hat.max()', y_g_hat.max())
+            print('y_g_hat.min()', y_g_hat.min())
+            print('y_g_hat.mean()', y_g_hat.mean())
             audio = y_g_hat.squeeze() # remove the batch dim
             audio = audio * MAX_WAV_VALUE # re-scale
             audio = audio.cpu().numpy().astype('int16')
-
+            print("audio.shape", audio.shape)
             output_file = os.path.join(a.output_dir, os.path.splitext(filname)[0] + '_generated.wav')
             write(output_file, h.sampling_rate, audio)
             print(output_file)
